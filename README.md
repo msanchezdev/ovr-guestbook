@@ -14,6 +14,7 @@ That's it. `ovr` will:
 - start **two services** — `api` and `web` — each on a **free port it allocates** (no port collisions, ever)
 - **wire them together**: `web` gets the API's URL automatically (a cross-service ref), and waits until the API is healthy before starting
 - **provision + remember** the API's data dir and its signing key — so your guestbook entries and their signatures **survive restarts**
+- give `web` a **stable HTTPS URL** via [portless](https://www.npmjs.com/package/@override-dev/plugin-portless) — `https://web.<workspace>.localhost` (grouped by workspace, so every fork gets its own). Start the proxy from the TUI's `all` tab → "portless: start proxy", or just hit the `web` port directly.
 
 Open the `web` URL it prints, sign the guestbook, then quit and `npx ovr run` again — your entries are still there, still verified.
 

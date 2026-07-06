@@ -54,4 +54,6 @@ createServer(async (req, res) => {
 		.catch(() => [])
 	res.writeHead(200, { "content-type": "text/html" })
 	res.end(page(entries))
-}).listen(PORT, () => console.log(`web listening on :${PORT}  ·  api → ${API_URL}`))
+	// Bind IPv4 explicitly: the portless proxy dials 127.0.0.1, and Node ≥17 would otherwise
+	// resolve plain `localhost` to ::1 first (which 502s through the proxy).
+}).listen(PORT, "127.0.0.1", () => console.log(`web listening on :${PORT}  ·  api → ${API_URL}`))

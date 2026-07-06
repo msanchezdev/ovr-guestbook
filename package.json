@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "@override-dev/cli": "alpha"
+    "@override-dev/cli": "alpha",
+    "@override-dev/plugin-portless": "alpha"
   }
 }
