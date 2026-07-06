@@ -40,5 +40,10 @@ createServer(async (req, res) => {
 		console.log(`+ entry from ${name} (sig ${entry.sig})`)
 		return json(201, entry)
 	}
+	if (req.url === "/entries" && req.method === "DELETE") {
+		save([])
+		console.log("cleared all entries")
+		return json(200, { cleared: true })
+	}
 	json(404, { error: "not found" })
 }).listen(PORT, () => console.log(`api listening on :${PORT}  ·  data → ${FILE}`))
