@@ -58,3 +58,23 @@ Everything lives in **`ovr.config.mts`**. Notice:
 
 Open the **app** URL, sign the guestbook, then quit and `npx ovr run` again — your entries persist (Redis
 volume) and every entry is still signed by this environment's key.
+
+## Fork it — isolated stacks, side by side
+
+The point of forking: run several **complete, isolated** copies of the stack at once — each on its own
+branch, in its own workspace, with its own ports, its own Redis, and its own URLs. No collisions, nothing
+to hand-manage.
+
+```bash
+ovr fork dark   --from ovr-guestbook   # a workspace on the `dark` branch
+ovr fork sunset --from ovr-guestbook   # …and the `sunset` branch
+
+ovr run -w dark      # one terminal
+ovr run -w sunset    # another
+```
+
+The `dark`, `sunset`, and `ocean` branches each retheme the app's accent, so the two windows are obviously
+different — `https://app.dark.localhost` vs `https://app.sunset.localhost` (portless groups routes by
+workspace, so every fork gets its own hostname). Each fork runs a *separate* Redis + api + worker pool, so
+their guestbooks are fully independent. `ovr ps` shows them all. This is the "agents drive fast; don't let
+them crash" story — many environments in parallel, each sandboxed.
