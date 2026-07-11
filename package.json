@@ -3,11 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "workspaces": ["api", "worker", "app", "admin"],
+  "workspaces": ["api", "worker", "app", "admin", "desktop"],
   "devDependencies": {
     "@ovrdev/cli": "alpha",
     "@ovrdev/plugin-portless": "alpha",
     "@ovrdev/plugin-docker": "alpha",
+    "@ovrdev/plugin-electron": "alpha",
     "@ovrdev/plugin-js": "alpha"
   }
 }

@@ -7,6 +7,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { action, defineConfig, dotenv, input, waitHttp, waitTcp } from "@ovrdev/cli"
 import { docker } from "@ovrdev/plugin-docker"
+import { electron } from "@ovrdev/plugin-electron"
 import { node } from "@ovrdev/plugin-js"
 import { portless } from "@ovrdev/plugin-portless"
 
@@ -17,9 +18,14 @@ export default defineConfig(
 			dotenv(), //                            layer the repo's .env into every service
 			docker(), //                            kind.docker.container (Redis)
 			node(), //                              ensure node_modules before services start (npm workspaces)
+			electron(), //                          kind.electron.app (desktop mode)
 		],
+		// `ovr run` → web (React app + SvelteKit admin); `ovr run --mode desktop` → the same React
+		// app in a native Electron window instead.
+		modes: ["web", "desktop"],
+		defaultMode: "web",
 	},
-	({ workspace, kind }) => {
+	({ workspace, kind, mode }) => {
 		// Shared by the api's `discovery` reconcile (writes it) and the api process (reads it):
 		// the live CORS allowlist. Keyed per workspace so forks stay isolated.
 		const originsFile = join(tmpdir(), `ovr-guestbook.${workspace.name}.origins.json`)
@@ -124,27 +130,41 @@ export default defineConfig(
 					env: { REDIS_URL: redis.url },
 				}),
 
-				// ── App (React + Vite) ─────────────────────────────────────────────────────────
-				// The public guestbook. Portless HTTPS URL; Vite proxies /api → the api (so the browser
-				// hits the api same-origin, and discovery/CORS is genuinely exercised).
-				app: kind.shell({
-					prepare: async ({ portless }) => ({ port: await portless.register("app"), url: portless.url("app") }),
-					command: ({ port }) => `cd app && vite --port ${port} --host 127.0.0.1 --strictPort`,
-					env: { API_URL: workspace.services.api.url },
-					exports: ({ url, port }) => ({ url, port }),
-					announce: ({ url }) => [workspace.services.api.announce({ origin: url })],
-				}),
-
-				// ── Admin (SvelteKit) ──────────────────────────────────────────────────────────
-				// A second frontend: manage entries + watch the queue. Same wiring, different framework.
-				admin: kind.shell({
-					prepare: async ({ portless }) => ({ port: await portless.register("admin"), url: portless.url("admin") }),
-					// `svelte-kit sync` generates .svelte-kit/ (types + tsconfig) before dev — idempotent.
-					command: ({ port }) => `cd admin && svelte-kit sync && vite dev --port ${port} --host 127.0.0.1 --strictPort`,
-					env: { API_URL: workspace.services.api.url },
-					exports: ({ url, port }) => ({ url, port }),
-					announce: ({ url }) => [workspace.services.api.announce({ origin: url })],
-				}),
+				// ── Frontends — swapped by mode ────────────────────────────────────────────────
+				// `web` (default): the React app + the SvelteKit admin, each a portless dev server.
+				// `desktop`: the SAME React app in a native Electron window instead.
+				...(mode === "desktop"
+					? {
+							// renderer = the app's Vite dev server; main = Electron loading it (the plugin
+							// injects ELECTRON_RENDERER_URL). devtools:true → a CDP port + the open-inspect
+							// action. The app's Vite proxy still routes /api → the api.
+							desktop: kind.electron.app({
+								renderer: { command: ({ port }) => `cd app && vite --port ${port} --host 127.0.0.1 --strictPort` },
+								main: "cd desktop && electron .",
+								devtools: true,
+								env: { API_URL: workspace.services.api.url },
+							}),
+						}
+					: {
+							// ── App (React + Vite) — the public guestbook, portless HTTPS URL. Vite proxies
+							// /api → the api (browser hits it same-origin, exercising discovery-driven CORS).
+							app: kind.shell({
+								prepare: async ({ portless }) => ({ port: await portless.register("app"), url: portless.url("app") }),
+								command: ({ port }) => `cd app && vite --port ${port} --host 127.0.0.1 --strictPort`,
+								env: { API_URL: workspace.services.api.url },
+								exports: ({ url, port }) => ({ url, port }),
+								announce: ({ url }) => [workspace.services.api.announce({ origin: url })],
+							}),
+							// ── Admin (SvelteKit) — manage entries + watch the queue. Different framework.
+							admin: kind.shell({
+								prepare: async ({ portless }) => ({ port: await portless.register("admin"), url: portless.url("admin") }),
+								// `svelte-kit sync` generates .svelte-kit/ before dev — idempotent.
+								command: ({ port }) => `cd admin && svelte-kit sync && vite dev --port ${port} --host 127.0.0.1 --strictPort`,
+								env: { API_URL: workspace.services.api.url },
+								exports: ({ url, port }) => ({ url, port }),
+								announce: ({ url }) => [workspace.services.api.announce({ origin: url })],
+							}),
+						}),
 			},
 		}
 	},
