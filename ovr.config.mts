@@ -24,6 +24,7 @@ export default defineConfig(
 		// the live CORS allowlist. Keyed per workspace so forks stay isolated.
 		const originsFile = join(tmpdir(), `ovr-guestbook.${workspace.name}.origins.json`)
 		const redis = workspace.services.redis
+		const storage = workspace.services.storage
 
 		return {
 			services: {
@@ -37,12 +38,30 @@ export default defineConfig(
 					ready: ({ port }) => waitTcp(port),
 				}),
 
+				// ── Object storage (MinIO, Docker) ─────────────────────────────────────────────
+				// This whole service exists ONLY on the `image` branch — a fork that changes the
+				// environment's TOPOLOGY, not just code. S3-compatible; the api uploads entry images
+				// here. `command` (a container arg) needs @ovrdev/plugin-docker ≥ alpha.3.
+				storage: kind.docker.container({
+					image: "minio/minio",
+					command: ["server", "/data", "--console-address", ":9001"],
+					ports: [{ container: 9000 }, { container: 9001 }],
+					env: { MINIO_ROOT_USER: "minio", MINIO_ROOT_PASSWORD: "minio12345" },
+					exports: ({ host, port }) => ({
+						url: `http://${host}:${port}`, // the S3 API endpoint
+						key: "minio",
+						secret: "minio12345",
+						bucket: "guestbook",
+					}),
+					ready: ({ port }) => waitHttp(`http://localhost:${port}/minio/health/live`),
+				}),
+
 				// ── API (Elysia, on Node) ──────────────────────────────────────────────────────
 				// prepare provisions a port, a signing keypair, and a generated admin token. It waits
 				// for Redis to be READY, stores entries in Redis, and enqueues a "notify" job per entry
 				// for the worker pool.
 				api: kind.shell({
-					waitFor: [redis.ready],
+					waitFor: [redis.ready, storage.ready], // both backing services must be up
 					prepare: async ({ ports, keys, secrets }) => ({
 						port: await ports.alloc(),
 						signKey: keys.pair("entries").privateKey, // stable signature per environment
@@ -54,7 +73,11 @@ export default defineConfig(
 						SIGN_KEY: signKey,
 						ADMIN_TOKEN: adminToken,
 						ORIGINS_FILE: originsFile,
-						REDIS_URL: redis.url, // a cross-service ref → resolved to redis://host:port
+						REDIS_URL: redis.url, //   a cross-service ref → resolved to redis://host:port
+						STORAGE_URL: storage.url, // MinIO S3 endpoint + creds + bucket (image branch only)
+						STORAGE_KEY: storage.key,
+						STORAGE_SECRET: storage.secret,
+						STORAGE_BUCKET: storage.bucket,
 					}),
 					exports: ({ port, adminToken }) => ({ url: `http://localhost:${port}`, port, adminToken }),
 					ready: ({ port }) => waitHttp(`http://localhost:${port}/health`), // gates the frontends
