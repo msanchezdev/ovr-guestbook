@@ -59,22 +59,42 @@ Everything lives in **`ovr.config.mts`**. Notice:
 Open the **app** URL, sign the guestbook, then quit and `npx ovr run` again — your entries persist (Redis
 volume) and every entry is still signed by this environment's key.
 
-## Fork it — isolated stacks, side by side
+## Fork it — isolated environments for real work
 
-The point of forking: run several **complete, isolated** copies of the stack at once — each on its own
-branch, in its own workspace, with its own ports, its own Redis, and its own URLs. No collisions, nothing
-to hand-manage.
+A **fork** is a throwaway, fully-isolated copy of the environment: its own git worktree (on its own
+branch), its own ports, its own Redis, its own URLs. Nothing collides with your main checkout, and you
+can tear it down without a trace. Because you're already in this workspace after `ovr run`, you don't
+pass a base — just name the fork:
 
 ```bash
-ovr fork dark   --from ovr-guestbook   # a workspace on the `dark` branch
-ovr fork sunset --from ovr-guestbook   # …and the `sunset` branch
-
-ovr run -w dark      # one terminal
-ovr run -w sunset    # another
+ovr fork feature-x      # new worktree on branch `feature-x`, active
+ovr run                 # boot it — its own Redis, api, worker, URLs
 ```
 
-The `dark`, `sunset`, and `ocean` branches each retheme the app's accent, so the two windows are obviously
-different — `https://app.dark.localhost` vs `https://app.sunset.localhost` (portless groups routes by
-workspace, so every fork gets its own hostname). Each fork runs a *separate* Redis + api + worker pool, so
-their guestbooks are fully independent. `ovr ps` shows them all. This is the "agents drive fast; don't let
-them crash" story — many environments in parallel, each sandboxed.
+Use it for things you don't want touching your main checkout:
+
+- **A change in isolation** — edit the api or worker in the fork's worktree (it's a separate branch),
+  run it, throw it away if it doesn't pan out. Your main environment never moved.
+- **A config / scale variant, no code change** — fork, then override an env var live and restart:
+  ```bash
+  ovr inspect guestbook.worker env.POOL=12   # this fork runs a 12-wide pool…
+  ovr run                                     # …while your main run stays at POOL=3
+  ```
+  (or press `i` on `worker` → `env` tab → `e`.) Same code, a different environment.
+- **Parallel agents / tickets** — give each its own fork so they never step on each other's ports or
+  data. `ovr ps` shows every fork's services across sessions.
+
+### The themed branches (a visual side-by-side demo)
+
+`dark`, `sunset`, and `ocean` are ready-made example branches that just retheme the app's accent, so two
+forks are obviously different on screen:
+
+```bash
+ovr fork dark    # worktree on the `dark` branch
+ovr fork sunset  # …and `sunset`
+ovr run -w dark      # one terminal → https://app.dark.localhost
+ovr run -w sunset    # another      → https://app.sunset.localhost
+```
+
+Each is a complete, independent stack (separate Redis + api + worker pool), on its own portless hostname.
+This is the "agents drive fast; don't let them crash" story — many environments in parallel, each sandboxed.
