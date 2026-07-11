@@ -42,7 +42,7 @@ export function App() {
 			<form onSubmit={submit} style={{ display: "flex", gap: ".5rem", margin: "1.5rem 0" }}>
 				<input value={name} onChange={(e) => setName(e.target.value)} placeholder="your name" style={{ flex: 0.5, padding: ".55rem .7rem", borderRadius: ".5rem", border: "1px solid #8884" }} />
 				<input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="say something…" style={{ flex: 1, padding: ".55rem .7rem", borderRadius: ".5rem", border: "1px solid #8884" }} />
-				<button type="submit" style={{ padding: ".55rem .9rem", borderRadius: ".5rem", border: 0, background: "#6c5ce7", color: "#fff", fontWeight: 600, cursor: "pointer" }}>
+				<button type="submit" style={{ padding: ".55rem .9rem", borderRadius: ".5rem", border: 0, background: "#8b7bff", color: "#fff", fontWeight: 600, cursor: "pointer" }}>
 					sign it
 				</button>
 			</form>
@@ -51,7 +51,7 @@ export function App() {
 				<div key={`${e.at}:${e.sig}`} style={{ padding: ".8rem 0", borderTop: "1px solid #8882" }}>
 					<b>{e.name}</b> — {e.message}
 					<div style={{ opacity: 0.55, fontSize: ".8rem" }}>
-						{e.at} · <span style={{ fontFamily: "ui-monospace, monospace", background: "#6c5ce722", color: "#6c5ce7", padding: "0 .35rem", borderRadius: ".35rem" }}>✓ {e.sig}</span>
+						{e.at} · <span style={{ fontFamily: "ui-monospace, monospace", background: "#8b7bff22", color: "#8b7bff", padding: "0 .35rem", borderRadius: ".35rem" }}>✓ {e.sig}</span>
 					</div>
 				</div>
 			))}
