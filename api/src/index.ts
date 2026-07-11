@@ -22,10 +22,15 @@ const notify = new Queue("notify", { connection })
 
 const ENTRIES = "guestbook:entries"
 
-type Entry = { name: string; message: string; at: string; sig: string }
+type Entry = { name: string; message: string; at: string; sig: string; reactions?: Record<string, string> }
 const sign = (msg: string) =>
 	SIGN_KEY ? cryptoSign(null, Buffer.from(msg), SIGN_KEY).toString("base64url").slice(0, 10) : "unsigned"
-const listEntries = async (): Promise<Entry[]> => (await redis.lrange(ENTRIES, 0, -1)).map((s) => JSON.parse(s))
+// Each entry carries its reaction counts — a Redis hash keyed by the entry's signature.
+const reactionsKey = (sig: string) => `guestbook:reactions:${sig}`
+const listEntries = async (): Promise<Entry[]> => {
+	const raw: Entry[] = (await redis.lrange(ENTRIES, 0, -1)).map((s) => JSON.parse(s))
+	return Promise.all(raw.map(async (e) => ({ ...e, reactions: await redis.hgetall(reactionsKey(e.sig)) })))
+}
 
 // The CORS allowlist ovr keeps current via discovery — re-read per request so live reconciles apply.
 const allowed = (): string[] => {
@@ -50,6 +55,13 @@ new Elysia({ adapter: node() })
 	.get("/health", () => ({ ok: true }))
 	.get("/entries", () => listEntries())
 	.get("/stats", async () => ({ entries: await redis.llen(ENTRIES), queued: await notify.getWaitingCount() }))
+	.post("/react", async ({ body }) => {
+		const { sig, emoji } = (body ?? {}) as { sig?: string; emoji?: string }
+		if (!sig || !emoji) return { error: "sig + emoji required" }
+		const count = await redis.hincrby(reactionsKey(sig), emoji, 1)
+		console.log(`${emoji} on ${sig} → ${count}`)
+		return { sig, emoji, count }
+	})
 	.post("/entries", async ({ body }) => {
 		const { name = "anon", message = "" } = (body ?? {}) as { name?: string; message?: string }
 		const entry: Entry = { name, message, at: new Date().toISOString(), sig: sign(`${name}:${message}`) }

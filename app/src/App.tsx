@@ -3,7 +3,9 @@ import { type FormEvent, useEffect, useState } from "react"
 // Injected by Vite from the .env's GUESTBOOK_TITLE (see vite.config.ts).
 declare const __TITLE__: string
 
-type Entry = { name: string; message: string; at: string; sig: string }
+type Entry = { name: string; message: string; at: string; sig: string; reactions?: Record<string, string> }
+
+const REACTIONS = ["👍", "🎉", "❤️"]
 
 export function App() {
 	const [entries, setEntries] = useState<Entry[]>([])
@@ -35,6 +37,15 @@ export function App() {
 		load()
 	}
 
+	const react = async (sig: string, emoji: string) => {
+		await fetch("/api/react", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ sig, emoji }),
+		})
+		load()
+	}
+
 	return (
 		<main style={{ maxWidth: 640, margin: "4rem auto", padding: "0 1rem", font: "16px/1.5 system-ui, sans-serif" }}>
 			<h1 style={{ letterSpacing: "-.02em" }}>{__TITLE__}</h1>
@@ -52,6 +63,18 @@ export function App() {
 					<b>{e.name}</b> — {e.message}
 					<div style={{ opacity: 0.55, fontSize: ".8rem" }}>
 						{e.at} · <span style={{ fontFamily: "ui-monospace, monospace", background: "#6c5ce722", color: "#6c5ce7", padding: "0 .35rem", borderRadius: ".35rem" }}>✓ {e.sig}</span>
+					</div>
+					<div style={{ display: "flex", gap: ".4rem", marginTop: ".4rem" }}>
+						{REACTIONS.map((emoji) => (
+							<button
+								key={emoji}
+								type="button"
+								onClick={() => react(e.sig, emoji)}
+								style={{ font: "inherit", padding: ".1rem .45rem", borderRadius: "1rem", border: "1px solid #8883", background: "transparent", cursor: "pointer" }}
+							>
+								{emoji} {e.reactions?.[emoji] ?? 0}
+							</button>
+						))}
 					</div>
 				</div>
 			))}
